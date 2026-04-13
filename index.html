@@ -77,14 +77,14 @@
         import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
         import { io } from "https://cdn.socket.io/4.7.2/socket.io.esm.min.js";
 
-        const socket = io(); 
+        // CONEXIÓN AL SERVIDOR DE RENDER
+        const socket = io("https://doppelg-nger-protocol.onrender.com"); 
 
         let camera, scene, renderer, controls, flashLight;
         let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
         let battery = 100;
         let isGlitching = false;
         let touchX = null, touchY = null;
-        let isMobile = false;
 
         const velocity = new THREE.Vector3();
         const direction = new THREE.Vector3();
@@ -116,11 +116,11 @@
             controls = new PointerLockControls(camera, document.body);
             const blocker = document.getElementById('instructions');
 
-            // --- LÓGICA DE INICIO (MOUSE & TOUCH) ---
             const startEvent = () => {
                 controls.lock();
-                // Activar motor de voz para móviles
-                window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
+                if (window.speechSynthesis) {
+                    window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
+                }
             };
 
             blocker.addEventListener('click', startEvent);
@@ -129,7 +129,6 @@
             controls.addEventListener('lock', () => blocker.style.display = 'none');
             controls.addEventListener('unlock', () => blocker.style.display = 'flex');
 
-            // --- CONTROLES TECLADO ---
             document.addEventListener('keydown', (e) => {
                 if(e.code === 'KeyW') moveForward = true;
                 if(e.code === 'KeyA') moveLeft = true;
@@ -143,9 +142,7 @@
                 if(e.code === 'KeyD') moveRight = false;
             });
 
-            // --- CONTROLES TÁCTILES ---
             document.addEventListener('touchstart', (e) => {
-                isMobile = true;
                 touchX = e.touches[0].pageX;
                 touchY = e.touches[0].pageY;
                 if (e.touches.length > 1) moveForward = true;
@@ -190,6 +187,13 @@
                 otherPlayers[data.id].position.copy(data.position);
                 otherPlayers[data.id].rotation.y = data.rotation;
             });
+
+            socket.on('player_disconnected', (id) => {
+                if (otherPlayers[id]) {
+                    scene.remove(otherPlayers[id]);
+                    delete otherPlayers[id];
+                }
+            });
         }
 
         function triggerHorrorEffect() {
@@ -200,7 +204,7 @@
             overlay.style.opacity = "0.8";
             ui.classList.add('glitch-effect');
             
-            const whispers = ["¿Quién está detrás?", "Gracias por la piel", "No eres tú"];
+            const whispers = ["¿Quién está detrás?", "Gracias por la piel", "No eres tú", "Déjame entrar"];
             const utterance = new SpeechSynthesisUtterance(whispers[Math.floor(Math.random() * whispers.length)]);
             utterance.pitch = 0.1; utterance.rate = 0.6;
             window.speechSynthesis.speak(utterance);
