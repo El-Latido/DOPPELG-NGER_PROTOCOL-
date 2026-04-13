@@ -75,8 +75,10 @@
     <script type="module">
         import * as THREE from 'three';
         import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         import { io } from "https://cdn.socket.io/4.7.2/socket.io.esm.min.js";
 
+        // CONFIGURACIÓN DE RED
         let socket;
         try {
             socket = io("https://doppelg-nger-protocol.onrender.com", {
@@ -93,12 +95,8 @@
         const otherPlayers = {}; 
         const velocity = new THREE.Vector3();
 
-        const wallMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1c, metalness: 0.8, roughness: 0.2 });
-        const floorMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0b, roughness: 1.0 });
-        const screenMat = new THREE.MeshStandardMaterial({ color: 0x00ff88, emissive: 0x00ff88, emissiveIntensity: 0.5 });
-
         init();
-        createStation();
+        loadMap(); // Carga el escenario de prueba
         animate();
 
         function init() {
@@ -109,12 +107,14 @@
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.set(0, 2, 5); 
 
-            flashLight = new THREE.PointLight(0x00ff88, 2.5, 35); 
+            // Linterna del jugador
+            flashLight = new THREE.PointLight(0x00ff88, 2.5, 30); 
             camera.add(flashLight);
             scene.add(camera);
 
-            const ambientLight = new THREE.AmbientLight(0x4040ff, 0.03); 
-            scene.add(ambientLight);
+            // Luz ambiental azulada (Vibra de tu imagen)
+            const ambient = new THREE.AmbientLight(0x4444ff, 0.05);
+            scene.add(ambient);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -133,6 +133,7 @@
             blocker.addEventListener('touchstart', startAction, { passive: false });
             blocker.addEventListener('click', startAction);
 
+            // CONTROLES MÓVILES
             document.addEventListener('touchstart', (e) => {
                 touchX = e.touches[0].pageX;
                 touchY = e.touches[0].pageY;
@@ -161,6 +162,7 @@
                 renderer.setSize(window.innerWidth, window.innerHeight);
             });
 
+            // MULTIJUGADOR: Recibir otros jugadores
             socket.on('player_moved', (data) => {
                 if (!otherPlayers[data.id]) {
                     const group = new THREE.Group();
@@ -176,6 +178,33 @@
             });
         }
 
+        function loadMap() {
+            const loader = new GLTFLoader();
+            // ESTE ES UN MAPA DE PRUEBA (Habitaciones modulares)
+            const testMapURL = 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/Rooms.glb';
+
+            loader.load(testMapURL, (gltf) => {
+                const map = gltf.scene;
+                map.scale.set(1.5, 1.5, 1.5); // Ajuste de tamaño
+                map.position.set(0, 0, 0);
+                scene.add(map);
+
+                // Activar sombras en el mapa
+                map.traverse((node) => {
+                    if (node.isMesh) {
+                        node.receiveShadow = true;
+                        node.castShadow = true;
+                        // Darle un toque metalizado
+                        node.material.metalness = 0.7;
+                        node.material.roughness = 0.3;
+                    }
+                });
+                console.log("Mapa de prueba cargado.");
+            }, undefined, (error) => {
+                console.error("Error cargando mapa:", error);
+            });
+        }
+
         function triggerHorrorEffect() {
             if (isGlitching) return;
             isGlitching = true;
@@ -183,95 +212,44 @@
             const ui = document.getElementById('ui-layer');
             overlay.style.opacity = "0.8";
             ui.classList.add('glitch-effect');
+            
             setTimeout(() => {
                 overlay.style.opacity = "0";
                 ui.classList.remove('glitch-effect');
                 isGlitching = false;
-            }, 2000);
-        }
-
-        function createWall(w, h, d, x, y, z, isPanel = false) {
-            const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
-            mesh.position.set(x, y, z);
-            scene.add(mesh);
-            
-            if(isPanel) { // Añadir un "brillo" táctico como en tu imagen
-                const screen = new THREE.Mesh(new THREE.PlaneGeometry(w*0.8, h*0.4), screenMat);
-                screen.position.set(x + (x<0 ? 0.51 : -0.51), y + 0.5, z);
-                screen.rotation.y = x<0 ? Math.PI/2 : -Math.PI/2;
-                scene.add(screen);
-            }
-        }
-
-        function setupRoom(z, side, color, name, propType) {
-            const size = 12;
-            const xPos = (size / 2 + 5) * side;
-            const roomFloor = new THREE.Mesh(new THREE.PlaneGeometry(size, size), floorMat);
-            roomFloor.rotation.x = -Math.PI / 2;
-            roomFloor.position.set(xPos, 0.01, z);
-            scene.add(roomFloor);
-
-            createWall(size, 5, 0.5, xPos, 2.5, z - size/2); 
-            createWall(size, 5, 0.5, xPos, 2.5, z + size/2); 
-            createWall(0.5, 5, size, xPos + (size/2 * side), 2.5, z, true); // Pared con panel
-
-            const light = new THREE.PointLight(color, 1.5, 20);
-            light.position.set(xPos, 4, z);
-            scene.add(light);
-        }
-
-        function createStation() {
-            const pasilloLargo = 120;
-            const floor = new THREE.Mesh(new THREE.PlaneGeometry(10, pasilloLargo), floorMat);
-            floor.rotation.x = -Math.PI / 2;
-            floor.position.z = -pasilloLargo/2 + 10;
-            scene.add(floor);
-
-            for(let i = 0; i < 12; i++) {
-                const z = -i * 10;
-                if (i % 2 !== 0) { 
-                    createWall(1, 4, 10, -5, 2, z, true); 
-                    createWall(1, 4, 10, 5, 2, z, true);
-                }
-            }
-
-            // Salas específicas
-            setupRoom(-10, -1, 0xff3300, "MÁQUINAS", "cylinder");
-            setupRoom(-30, 1, 0x00ff88, "CARGA", "box");
-            setupRoom(-50, -1, 0x0055ff, "CIENCIAS", "table");
-            setupRoom(-70, 1, 0x00ffff, "COMPUTADORAS", "box");
-            setupRoom(-90, -1, 0x555555, "DESECHOS", "cylinder");
-
-            // GRAN VENTANAL AL FINAL (Como en la imagen)
-            const windowFrame = new THREE.Mesh(new THREE.TorusGeometry(8, 0.5, 16, 6), wallMat);
-            windowFrame.position.set(0, 4, -110);
-            scene.add(windowFrame);
-            
-            const spaceLight = new THREE.PointLight(0x4444ff, 2, 50);
-            spaceLight.position.set(0, 5, -115);
-            scene.add(spaceLight);
+            }, 1500);
         }
 
         function animate() {
             requestAnimationFrame(animate);
             const blocker = document.getElementById('instructions');
+            
             if (blocker && blocker.style.display === 'none') {
                 const delta = 0.016;
-                if (battery > 0) battery -= 0.005;
+                
+                // Consumo de batería
+                if (battery > 0) {
+                    battery -= 0.005;
+                    flashLight.intensity = (battery / 100) * 2.5;
+                }
+                
                 document.getElementById('battery-level').innerText = Math.floor(battery);
                 document.getElementById('battery-fill').style.width = battery + "%";
 
-                Object.keys(otherPlayers).forEach(id => {
-                    if (camera.position.distanceTo(otherPlayers[id].position) < 4) triggerHorrorEffect();
-                });
-
+                // Movimiento suave
                 velocity.z -= velocity.z * 10.0 * delta;
                 if (moveForward) velocity.z -= 400.0 * delta;
                 controls.moveForward(-velocity.z * delta);
 
+                // Enviar posición al servidor
                 if (socket.connected) {
                     socket.emit('move', { position: camera.position, rotation: camera.rotation.y });
                 }
+
+                // Detectar cercanía con otros para sustos
+                Object.keys(otherPlayers).forEach(id => {
+                    if (camera.position.distanceTo(otherPlayers[id].position) < 3) triggerHorrorEffect();
+                });
             }
             renderer.render(scene, camera);
         }
