@@ -3,64 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DOPPELGÄNGER_PROTOCOL | Pre-Alpha v0.1</title>
+    <title>DOPPELGÄNGER_PROTOCOL | Dev_View</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; touch-action: none; }
-        #ui-layer {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; border: 20px solid rgba(255, 0, 0, 0.05); box-sizing: border-box;
-            transition: filter 0.1s;
-        }
-        .hud { position: absolute; color: #00ff88; text-shadow: 0 0 5px #00ff88; padding: 20px; font-size: 14px; }
-        .top-left { top: 0; left: 0; }
-        .bottom-right { bottom: 0; right: 0; color: #ff0055; text-shadow: 0 0 5px #ff0055; text-align: right; }
-        
-        #static-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: url('https://media.giphy.com/media/oEI9uWUPr9WvA9RWv2/giphy.gif');
-            opacity: 0; mix-blend-mode: screen; pointer-events: none; z-index: 20;
-            transition: opacity 0.1s;
-        }
-        .glitch-effect { filter: hue-rotate(90deg) contrast(200%) brightness(1.5) blur(1px); }
-
-        #crosshair {
-            position: absolute; top: 50%; left: 50%;
-            width: 10px; height: 10px; border: 1px solid rgba(0, 255, 136, 0.5);
-            transform: translate(-50%, -50%); border-radius: 50%;
-        }
+        body { margin: 0; overflow: hidden; background: #222; font-family: 'Courier New', monospace; touch-action: none; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        .hud { position: absolute; color: #00ff88; padding: 20px; font-size: 14px; background: rgba(0,0,0,0.5); }
         #instructions {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            color: white; text-align: center; background: rgba(0,0,0,0.9);
-            padding: 30px; border: 1px solid #00ff88; cursor: pointer; z-index: 30;
+            display: flex; justify-content: center; align-items: center;
+            color: white; background: rgba(0,0,0,0.8); z-index: 30;
         }
-        .battery-bar { width: 100px; height: 10px; border: 1px solid #00ff88; display: inline-block; margin-left: 5px; }
-        #battery-fill { height: 100%; background: #00ff88; width: 100%; transition: width 0.3s; }
     </style>
 </head>
 <body>
 
-    <div id="static-overlay"></div>
-
     <div id="ui-layer">
-        <div class="hud top-left">
-            > STATUS: OPERACIÓN ELYSIUM-9<br>
-            > LINTERNA: <span id="battery-level">100</span>% 
-            <div class="battery-bar"><div id="battery-fill"></div></div><br>
-            > SISTEMA: <span id="light-status" style="color:#00ff88">NOMINAL</span>
-        </div>
-        <div id="crosshair"></div>
-        <div class="hud bottom-right">
-            <div id="warning">IDENTIDAD VERIFICADA</div>
-            <div id="room-name" style="font-size: 10px; opacity: 0.6;">SISTEMA DOPPELGÄNGER ACTIVO</div>
-        </div>
+        <div class="hud">> MODO VISUALIZACIÓN COMPLETA ACTIVO</div>
     </div>
 
     <div id="instructions">
-        <h1 style="letter-spacing: 10px;">DOPPELGÄNGER PROTOCOL</h1>
-        <p style="color: #00ff88; font-weight: bold;">ADVERTENCIA: Interferencia detectada en proximidad.</p>
-        <p>TOCA LA PANTALLA PARA ENTRAR</p>
-        <small style="margin-top:10px; opacity:0.6;">(Desliza para mirar | 2 dedos para caminar)</small>
+        <h1>MAPA REVELADO</h1>
+        <p>TOCA PARA EXPLORAR SIN OSCURIDAD</p>
     </div>
 
     <script type="importmap">
@@ -76,180 +39,91 @@
         import * as THREE from 'three';
         import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-        import { io } from "https://cdn.socket.io/4.7.2/socket.io.esm.min.js";
 
-        // CONFIGURACIÓN DE RED
-        let socket;
-        try {
-            socket = io("https://doppelg-nger-protocol.onrender.com", {
-                transports: ['websocket'],
-                upgrade: false
-            });
-        } catch (e) {
-            socket = { emit: () => {}, on: () => {} }; 
-        }
-
-        let camera, scene, renderer, controls, flashLight;
-        let moveForward = false, battery = 100;
-        let isGlitching = false, touchX = null, touchY = null;
-        const otherPlayers = {}; 
+        let camera, scene, renderer, controls;
+        let moveForward = false, touchX = null, touchY = null;
         const velocity = new THREE.Vector3();
 
         init();
-        loadMap(); // Carga el escenario de prueba
+        loadMap();
         animate();
 
         function init() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x010103);
-            scene.fog = new THREE.FogExp2(0x010103, 0.1);
+            scene.background = new THREE.Color(0x333344); // Fondo gris azulado para ver los bordes
 
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 2, 5); 
+            // --- ELIMINADA LA NIEBLA PARA VER TODO EL MAPA ---
 
-            // Linterna del jugador
-            flashLight = new THREE.PointLight(0x00ff88, 2.5, 30); 
-            camera.add(flashLight);
-            scene.add(camera);
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.set(0, 5, 15); // Un poco más alto para perspectiva
 
-            // Luz ambiental azulada (Vibra de tu imagen)
-            const ambient = new THREE.AmbientLight(0x4444ff, 0.05);
-            scene.add(ambient);
+            // --- LUZ AMBIENTAL MÁXIMA ---
+            const light = new THREE.AmbientLight(0xffffff, 1.5); // Luz blanca pura y fuerte
+            scene.add(light);
+
+            const sunLight = new THREE.DirectionalLight(0xffffff, 1);
+            sunLight.position.set(5, 10, 7.5);
+            scene.add(sunLight);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             document.body.appendChild(renderer.domElement);
 
             controls = new PointerLockControls(camera, renderer.domElement);
             const blocker = document.getElementById('instructions');
 
-            const startAction = (e) => {
-                e.preventDefault();
-                blocker.style.display = 'none'; 
-                if (controls.lock) controls.lock();
-            };
+            blocker.addEventListener('click', () => {
+                blocker.style.display = 'none';
+                controls.lock();
+            });
 
-            blocker.addEventListener('touchstart', startAction, { passive: false });
-            blocker.addEventListener('click', startAction);
-
-            // CONTROLES MÓVILES
+            // Controles básicos para móvil
             document.addEventListener('touchstart', (e) => {
                 touchX = e.touches[0].pageX;
                 touchY = e.touches[0].pageY;
-                if (e.touches.length > 1) moveForward = true;
-            }, { passive: false });
-
+                moveForward = true;
+            });
             document.addEventListener('touchmove', (e) => {
-                if (blocker.style.display === 'none') {
-                    const dx = e.touches[0].pageX - touchX;
-                    const dy = e.touches[0].pageY - touchY;
-                    camera.rotation.y -= dx * 0.007;
-                    camera.rotation.x -= dy * 0.007;
-                    camera.rotation.x = Math.max(-1.5, Math.min(1.5, camera.rotation.x));
-                    touchX = e.touches[0].pageX;
-                    touchY = e.touches[0].pageY;
-                }
-            }, { passive: false });
-
-            document.addEventListener('touchend', (e) => {
-                if (e.touches.length < 2) moveForward = false;
+                const dx = e.touches[0].pageX - touchX;
+                const dy = e.touches[0].pageY - touchY;
+                camera.rotation.y -= dx * 0.005;
+                camera.rotation.x -= dy * 0.005;
+                touchX = e.touches[0].pageX;
+                touchY = e.touches[0].pageY;
             });
-
-            window.addEventListener('resize', () => {
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
-            });
-
-            // MULTIJUGADOR: Recibir otros jugadores
-            socket.on('player_moved', (data) => {
-                if (!otherPlayers[data.id]) {
-                    const group = new THREE.Group();
-                    const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.8, 0.5), new THREE.MeshStandardMaterial({ color: 0x333333 }));
-                    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.2, 0.1), new THREE.MeshStandardMaterial({ color: 0x00ff88, emissive: 0x00ff88 }));
-                    visor.position.set(0, 0.6, 0.25);
-                    group.add(body, visor);
-                    otherPlayers[data.id] = group;
-                    scene.add(group);
-                }
-                otherPlayers[data.id].position.copy(data.position);
-                otherPlayers[data.id].rotation.y = data.rotation;
-            });
+            document.addEventListener('touchend', () => moveForward = false);
         }
 
         function loadMap() {
             const loader = new GLTFLoader();
-            // ESTE ES UN MAPA DE PRUEBA (Habitaciones modulares)
             const testMapURL = 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/Rooms.glb';
 
             loader.load(testMapURL, (gltf) => {
                 const map = gltf.scene;
-                map.scale.set(1.5, 1.5, 1.5); // Ajuste de tamaño
-                map.position.set(0, 0, 0);
+                map.scale.set(2, 2, 2); 
                 scene.add(map);
 
-                // Activar sombras en el mapa
+                // Forzar a que todo sea brillante
                 map.traverse((node) => {
                     if (node.isMesh) {
-                        node.receiveShadow = true;
-                        node.castShadow = true;
-                        // Darle un toque metalizado
-                        node.material.metalness = 0.7;
-                        node.material.roughness = 0.3;
+                        node.material.transparent = false;
+                        node.material.opacity = 1;
+                        if(node.material.emissive) {
+                            node.material.emissiveIntensity = 0.2; // Un poco de brillo propio
+                        }
                     }
                 });
-                console.log("Mapa de prueba cargado.");
-            }, undefined, (error) => {
-                console.error("Error cargando mapa:", error);
+                console.log("Mapa cargado con brillo total");
             });
-        }
-
-        function triggerHorrorEffect() {
-            if (isGlitching) return;
-            isGlitching = true;
-            const overlay = document.getElementById('static-overlay');
-            const ui = document.getElementById('ui-layer');
-            overlay.style.opacity = "0.8";
-            ui.classList.add('glitch-effect');
-            
-            setTimeout(() => {
-                overlay.style.opacity = "0";
-                ui.classList.remove('glitch-effect');
-                isGlitching = false;
-            }, 1500);
         }
 
         function animate() {
             requestAnimationFrame(animate);
-            const blocker = document.getElementById('instructions');
-            
-            if (blocker && blocker.style.display === 'none') {
+            if (controls.isLocked || document.getElementById('instructions').style.display === 'none') {
                 const delta = 0.016;
-                
-                // Consumo de batería
-                if (battery > 0) {
-                    battery -= 0.005;
-                    flashLight.intensity = (battery / 100) * 2.5;
-                }
-                
-                document.getElementById('battery-level').innerText = Math.floor(battery);
-                document.getElementById('battery-fill').style.width = battery + "%";
-
-                // Movimiento suave
                 velocity.z -= velocity.z * 10.0 * delta;
-                if (moveForward) velocity.z -= 400.0 * delta;
+                if (moveForward) velocity.z -= 300.0 * delta;
                 controls.moveForward(-velocity.z * delta);
-
-                // Enviar posición al servidor
-                if (socket.connected) {
-                    socket.emit('move', { position: camera.position, rotation: camera.rotation.y });
-                }
-
-                // Detectar cercanía con otros para sustos
-                Object.keys(otherPlayers).forEach(id => {
-                    if (camera.position.distanceTo(otherPlayers[id].position) < 3) triggerHorrorEffect();
-                });
             }
             renderer.render(scene, camera);
         }
