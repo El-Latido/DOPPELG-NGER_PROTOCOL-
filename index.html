@@ -77,18 +77,22 @@
         import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
         import { io } from "https://cdn.socket.io/4.7.2/socket.io.esm.min.js";
 
-        // CONEXIÓN AL SERVIDOR DE RENDER
-        const socket = io("https://doppelg-nger-protocol.onrender.com"); 
+        // CONEXIÓN ROBUSTA
+        let socket;
+        try {
+            socket = io("https://doppelg-nger-protocol.onrender.com", {
+                transports: ['websocket'],
+                upgrade: false
+            });
+        } catch (e) {
+            socket = { emit: () => {}, on: () => {} }; 
+        }
 
         let camera, scene, renderer, controls, flashLight;
-        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
-        let battery = 100;
-        let isGlitching = false;
-        let touchX = null, touchY = null;
-
-        const velocity = new THREE.Vector3();
-        const direction = new THREE.Vector3();
+        let moveForward = false, battery = 100;
+        let isGlitching = false, touchX = null, touchY = null;
         const otherPlayers = {}; 
+        const velocity = new THREE.Vector3();
 
         const wallMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1c, metalness: 0.8, roughness: 0.2 });
         const floorMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0b, roughness: 1.0 });
@@ -106,67 +110,55 @@
             camera.position.set(0, 1.6, 5);
 
             flashLight = new THREE.PointLight(0x00ff88, 1, 20);
-            flashLight.castShadow = true;
             camera.add(flashLight);
             scene.add(camera);
 
             const ambientLight = new THREE.AmbientLight(0x404040, 0.01);
             scene.add(ambientLight);
 
-            controls = new PointerLockControls(camera, document.body);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.body.appendChild(renderer.domElement);
+
+            controls = new PointerLockControls(camera, renderer.domElement);
             const blocker = document.getElementById('instructions');
 
-            const startEvent = () => {
-                controls.lock();
+            // --- FUNCIÓN DE ENTRADA FORZADA ---
+            const startAction = (e) => {
+                e.preventDefault();
+                blocker.style.display = 'none'; 
+                if (controls.lock) controls.lock();
                 if (window.speechSynthesis) {
                     window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
                 }
             };
 
-            blocker.addEventListener('click', startEvent);
-            blocker.addEventListener('touchstart', startEvent);
+            blocker.addEventListener('touchstart', startAction, { passive: false });
+            blocker.addEventListener('click', startAction);
 
-            controls.addEventListener('lock', () => blocker.style.display = 'none');
-            controls.addEventListener('unlock', () => blocker.style.display = 'flex');
-
-            document.addEventListener('keydown', (e) => {
-                if(e.code === 'KeyW') moveForward = true;
-                if(e.code === 'KeyA') moveLeft = true;
-                if(e.code === 'KeyS') moveBackward = true;
-                if(e.code === 'KeyD') moveRight = true;
-            });
-            document.addEventListener('keyup', (e) => {
-                if(e.code === 'KeyW') moveForward = false;
-                if(e.code === 'KeyA') moveLeft = false;
-                if(e.code === 'KeyS') moveBackward = false;
-                if(e.code === 'KeyD') moveRight = false;
-            });
-
+            // CONTROLES MÓVILES
             document.addEventListener('touchstart', (e) => {
                 touchX = e.touches[0].pageX;
                 touchY = e.touches[0].pageY;
                 if (e.touches.length > 1) moveForward = true;
-            }, false);
+            }, { passive: false });
 
             document.addEventListener('touchmove', (e) => {
-                if (!controls.isLocked) return;
-                const dx = e.touches[0].pageX - touchX;
-                const dy = e.touches[0].pageY - touchY;
-                camera.rotation.y -= dx * 0.005;
-                camera.rotation.x -= dy * 0.005;
-                camera.rotation.x = Math.max(-1.5, Math.min(1.5, camera.rotation.x));
-                touchX = e.touches[0].pageX;
-                touchY = e.touches[0].pageY;
-            }, false);
+                if (blocker.style.display === 'none') {
+                    const dx = e.touches[0].pageX - touchX;
+                    const dy = e.touches[0].pageY - touchY;
+                    camera.rotation.y -= dx * 0.007;
+                    camera.rotation.x -= dy * 0.007;
+                    camera.rotation.x = Math.max(-1.5, Math.min(1.5, camera.rotation.x));
+                    touchX = e.touches[0].pageX;
+                    touchY = e.touches[0].pageY;
+                }
+            }, { passive: false });
 
             document.addEventListener('touchend', (e) => {
                 if (e.touches.length < 2) moveForward = false;
-            }, false);
-
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio);
-            document.body.appendChild(renderer.domElement);
+            });
 
             window.addEventListener('resize', () => {
                 camera.aspect = window.innerWidth / window.innerHeight;
@@ -177,8 +169,8 @@
             socket.on('player_moved', (data) => {
                 if (!otherPlayers[data.id]) {
                     const group = new THREE.Group();
-                    const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.8, 0.5), new THREE.MeshStandardMaterial({ color: 0x222222 }));
-                    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.3, 0.1), new THREE.MeshStandardMaterial({ color: 0x00ff88, emissive: 0x00ff88 }));
+                    const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.8, 0.5), new THREE.MeshStandardMaterial({ color: 0x333333 }));
+                    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.2, 0.1), new THREE.MeshStandardMaterial({ color: 0x00ff88, emissive: 0x00ff88 }));
                     visor.position.set(0, 0.6, 0.25);
                     group.add(body, visor);
                     otherPlayers[data.id] = group;
@@ -204,7 +196,7 @@
             overlay.style.opacity = "0.8";
             ui.classList.add('glitch-effect');
             
-            const whispers = ["¿Quién está detrás?", "Gracias por la piel", "No eres tú", "Déjame entrar"];
+            const whispers = ["¿Quién está detrás?", "Mírame", "No eres tú"];
             const utterance = new SpeechSynthesisUtterance(whispers[Math.floor(Math.random() * whispers.length)]);
             utterance.pitch = 0.1; utterance.rate = 0.6;
             window.speechSynthesis.speak(utterance);
@@ -224,11 +216,6 @@
                 const z = -i * 12;
                 createWall(1, 4, 12, -4, 2, z);
                 createWall(1, 4, 12, 4, 2, z);
-                if (i % 3 === 0 && i > 0) {
-                    const light = new THREE.PointLight(0xff0000, 0.2, 5);
-                    light.position.set(0, 3.5, z);
-                    scene.add(light);
-                }
             }
         }
 
@@ -240,9 +227,11 @@
 
         function animate() {
             requestAnimationFrame(animate);
-            if (controls.isLocked) {
-                const delta = 0.015;
-                if (battery > 0) battery -= 0.01;
+            const blocker = document.getElementById('instructions');
+            
+            if (blocker && blocker.style.display === 'none') {
+                const delta = 0.016;
+                if (battery > 0) battery -= 0.005;
                 
                 document.getElementById('battery-level').innerText = Math.floor(battery);
                 document.getElementById('battery-fill').style.width = battery + "%";
@@ -251,19 +240,13 @@
                     if (camera.position.distanceTo(otherPlayers[id].position) < 4) triggerHorrorEffect();
                 });
 
-                velocity.x -= velocity.x * 10.0 * delta;
                 velocity.z -= velocity.z * 10.0 * delta;
-                direction.z = Number(moveForward) - Number(moveBackward);
-                direction.x = Number(moveRight) - Number(moveLeft);
-                direction.normalize();
-
-                if (moveForward || moveBackward) velocity.z -= direction.z * 400.0 * delta;
-                if (moveLeft || moveRight) velocity.x -= direction.x * 400.0 * delta;
-
-                controls.moveRight(-velocity.x * delta);
+                if (moveForward) velocity.z -= 400.0 * delta;
                 controls.moveForward(-velocity.z * delta);
 
-                socket.emit('move', { position: camera.position, rotation: camera.rotation.y });
+                if (socket.connected) {
+                    socket.emit('move', { position: camera.position, rotation: camera.rotation.y });
+                }
             }
             renderer.render(scene, camera);
         }
