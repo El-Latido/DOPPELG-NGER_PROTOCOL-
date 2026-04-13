@@ -3,27 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DOPPELGÄNGER_PROTOCOL | Dev_View</title>
+    <title>DOPPELGÄNGER_PROTOCOL | Vision_Fix</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #222; font-family: 'Courier New', monospace; touch-action: none; }
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-        .hud { position: absolute; color: #00ff88; padding: 20px; font-size: 14px; background: rgba(0,0,0,0.5); }
+        body { margin: 0; overflow: hidden; background: #111; font-family: 'Courier New', monospace; touch-action: none; }
         #instructions {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            display: flex; justify-content: center; align-items: center;
-            color: white; background: rgba(0,0,0,0.8); z-index: 30;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            color: #00ff88; background: rgba(0,0,0,0.9); z-index: 30; text-align: center;
         }
+        .debug-info { position: absolute; top: 10px; left: 10px; color: #00ff88; font-size: 10px; pointer-events: none; }
     </style>
 </head>
 <body>
 
-    <div id="ui-layer">
-        <div class="hud">> MODO VISUALIZACIÓN COMPLETA ACTIVO</div>
-    </div>
+    <div class="debug-info" id="status">ESTADO: CARGANDO NAVE...</div>
 
     <div id="instructions">
-        <h1>MAPA REVELADO</h1>
-        <p>TOCA PARA EXPLORAR SIN OSCURIDAD</p>
+        <h1 style="letter-spacing: 5px;">SISTEMA DE VISIÓN ACTIVO</h1>
+        <p>EL GRIS HA SIDO ELIMINADO</p>
+        <button style="padding: 15px 30px; background: #00ff88; border: none; font-family: inherit; font-weight: bold; cursor: pointer;">
+            ENTRAR A LA ESTACIÓN
+        </button>
     </div>
 
     <script type="importmap">
@@ -50,23 +50,23 @@
 
         function init() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x333344); // Fondo gris azulado para ver los bordes
+            scene.background = new THREE.Color(0x050510); // Fondo azul muy oscuro (espacio)
 
-            // --- ELIMINADA LA NIEBLA PARA VER TODO EL MAPA ---
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 3000);
+            // MOVEMOS LA CÁMARA FUERA DEL BLOQUE GRIS (Más arriba y atrás)
+            camera.position.set(0, 10, 30); 
 
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
-            camera.position.set(0, 5, 15); // Un poco más alto para perspectiva
+            // --- LUCES POTENTES PARA ELIMINAR EL GRIS PLANO ---
+            const ambient = new THREE.AmbientLight(0xffffff, 0.8); 
+            scene.add(ambient);
 
-            // --- LUZ AMBIENTAL MÁXIMA ---
-            const light = new THREE.AmbientLight(0xffffff, 1.5); // Luz blanca pura y fuerte
-            scene.add(light);
-
-            const sunLight = new THREE.DirectionalLight(0xffffff, 1);
-            sunLight.position.set(5, 10, 7.5);
-            scene.add(sunLight);
+            const topLight = new THREE.DirectionalLight(0x4444ff, 1.5);
+            topLight.position.set(0, 50, 0);
+            scene.add(topLight);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
             document.body.appendChild(renderer.domElement);
 
             controls = new PointerLockControls(camera, renderer.domElement);
@@ -77,43 +77,45 @@
                 controls.lock();
             });
 
-            // Controles básicos para móvil
-            document.addEventListener('touchstart', (e) => {
-                touchX = e.touches[0].pageX;
-                touchY = e.touches[0].pageY;
-                moveForward = true;
-            });
+            // Controles para móvil
+            document.addEventListener('touchstart', (e) => { touchX = e.touches[0].pageX; touchY = e.touches[0].pageY; moveForward = true; });
             document.addEventListener('touchmove', (e) => {
                 const dx = e.touches[0].pageX - touchX;
                 const dy = e.touches[0].pageY - touchY;
                 camera.rotation.y -= dx * 0.005;
                 camera.rotation.x -= dy * 0.005;
-                touchX = e.touches[0].pageX;
-                touchY = e.touches[0].pageY;
+                touchX = e.touches[0].pageX; touchY = e.touches[0].pageY;
             });
             document.addEventListener('touchend', () => moveForward = false);
         }
 
         function loadMap() {
             const loader = new GLTFLoader();
-            const testMapURL = 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/Rooms.glb';
+            // Mapa de prueba oficial de Three.js
+            const url = 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/Rooms.glb';
 
-            loader.load(testMapURL, (gltf) => {
+            loader.load(url, (gltf) => {
                 const map = gltf.scene;
-                map.scale.set(2, 2, 2); 
-                scene.add(map);
-
-                // Forzar a que todo sea brillante
+                map.scale.set(5, 5, 5); // Escala grande para poder caminar dentro
+                
+                // --- TRUCO: CAMBIAR EL GRIS POR METAL AZULADO ---
                 map.traverse((node) => {
                     if (node.isMesh) {
-                        node.material.transparent = false;
-                        node.material.opacity = 1;
-                        if(node.material.emissive) {
-                            node.material.emissiveIntensity = 0.2; // Un poco de brillo propio
-                        }
+                        node.material = new THREE.MeshStandardMaterial({
+                            color: 0x223344, // Color metal azulado
+                            metalness: 0.9,
+                            roughness: 0.2,
+                            wireframe: false // Cambia a true si quieres ver la estructura
+                        });
                     }
                 });
-                console.log("Mapa cargado con brillo total");
+
+                scene.add(map);
+                document.getElementById('status').innerText = "ESTADO: NAVE DESPLEGADA";
+            }, 
+            (xhr) => {
+                let p = Math.floor(xhr.loaded / xhr.total * 100);
+                document.getElementById('status').innerText = "CARGANDO: " + p + "%";
             });
         }
 
@@ -122,7 +124,7 @@
             if (controls.isLocked || document.getElementById('instructions').style.display === 'none') {
                 const delta = 0.016;
                 velocity.z -= velocity.z * 10.0 * delta;
-                if (moveForward) velocity.z -= 300.0 * delta;
+                if (moveForward) velocity.z -= 400.0 * delta;
                 controls.moveForward(-velocity.z * delta);
             }
             renderer.render(scene, camera);
